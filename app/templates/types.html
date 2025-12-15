@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <p class="text-uppercase text-muted fw-semibold mb-2">Справочник PostgreSQL</p>
+      <h1 class="fw-bold mb-2">Типы файлов книг</h1>
+      <p class="text-muted mb-0">
+        CRUD-интерфейс для таблицы <code>tbc.books_files_types</code> с привязкой к
+        <code>tbc.books_files_groups</code>.
+      </p>
+    </div>
+    <div class="text-end">
+      <span class="badge bg-dark text-uppercase">Связано с группами</span>
+      <div class="small text-muted">group_id → tbc.books_files_groups.id</div>
+    </div>
+  </div>
+
+  <div id="alert-box" class="mb-3" aria-live="polite"></div>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-8">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <div>
+            <h2 class="h5 mb-0">Список типов</h2>
+            <small class="text-muted">GET /api/types/</small>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="refresh-btn">
+            <i class="bi bi-arrow-clockwise"></i> Обновить
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">Имя файла</th>
+                  <th scope="col">Комментарий</th>
+                  <th scope="col">Группа</th>
+                  <th scope="col" class="text-end">Действия</th>
+                </tr>
+              </thead>
+              <tbody id="types-table-body">
+                <tr>
+                  <td colspan="5" class="text-center py-4 text-muted">Загрузка...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <div>
+            <h2 class="h5 mb-0" id="form-title">Новая запись</h2>
+            <small class="text-muted">POST /api/types/</small>
+          </div>
+          <button class="btn btn-link text-decoration-none" type="button" id="reset-btn">
+            Сбросить
+          </button>
+        </div>
+        <div class="card-body">
+          <form id="type-form" class="needs-validation" novalidate>
+            <div class="mb-3">
+              <label class="form-label" for="type-id">ID</label>
+              <input type="number" class="form-control" id="type-id" required min="1" />
+              <div class="form-text">Первичный ключ.</div>
+              <div class="invalid-feedback">Укажите числовой идентификатор.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="file-name">Имя файла</label>
+              <input type="text" class="form-control" id="file-name" maxlength="30" />
+              <div class="form-text">Опционально, до 30 символов.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="comments">Комментарий</label>
+              <textarea class="form-control" id="comments" rows="2" maxlength="500"></textarea>
+              <div class="form-text">До 500 символов.</div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label" for="group-id">Группа</label>
+              <select class="form-select" id="group-id" required>
+                <option value="" selected disabled>Выберите группу</option>
+              </select>
+              <div class="invalid-feedback">Выберите существующую группу.</div>
+            </div>
+            <div class="d-grid gap-2">
+              <button class="btn btn-dark" type="submit" id="submit-btn">
+                <i class="bi bi-plus-lg"></i> Создать
+              </button>
+              <small class="text-muted" id="form-hint">Форма создаёт новую запись.</small>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h3 class="h6 text-uppercase text-muted mb-3">Связи и очереди</h3>
+          <p class="mb-2">
+            Каждый тип ссылается на существующую группу. При необходимости можно вызвать
+            фоновые задачи Celery после изменения записи.
+          </p>
+          <p class="mb-0 text-muted small">Используйте очередь CPU/GPU в зависимости от типа файла.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    const alertBox = document.getElementById("alert-box");
+    const tableBody = document.getElementById("types-table-body");
+    const refreshBtn = document.getElementById("refresh-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const form = document.getElementById("type-form");
+    const formTitle = document.getElementById("form-title");
+    const submitBtn = document.getElementById("submit-btn");
+    const formHint = document.getElementById("form-hint");
+    const fieldId = document.getElementById("type-id");
+    const fieldFileName = document.getElementById("file-name");
+    const fieldComments = document.getElementById("comments");
+    const fieldGroup = document.getElementById("group-id");
+
+    let typesCache = [];
+    let groupsCache = [];
+    let editingId = null;
+
+    const clearAlert = () => {
+      alertBox.innerHTML = "";
+    };
+
+    const showAlert = (message, type = "success") => {
+      alertBox.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>`;
+    };
+
+    const setFormMode = (typeId = null) => {
+      editingId = typeId;
+      if (typeId === null) {
+        formTitle.textContent = "Новая запись";
+        submitBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Создать';
+        formHint.textContent = "Форма создаёт новую запись.";
+        fieldId.removeAttribute("readonly");
+        form.reset();
+        if (fieldGroup.options.length > 0) {
+          fieldGroup.selectedIndex = 0;
+        }
+      } else {
+        formTitle.textContent = `Редактирование #${typeId}`;
+        submitBtn.innerHTML = '<i class="bi bi-save"></i> Сохранить изменения';
+        formHint.textContent = "PUT /api/types/<id>";
+        fieldId.setAttribute("readonly", "readonly");
+      }
+    };
+
+    const renderGroupOptions = () => {
+      const currentSelection = fieldGroup.value;
+      fieldGroup.innerHTML = '<option value="" disabled>Выберите группу</option>';
+      groupsCache.forEach((group) => {
+        const option = document.createElement("option");
+        option.value = group.id;
+        option.textContent = `${group.id} — ${group.name ?? "Без названия"}`;
+        fieldGroup.appendChild(option);
+      });
+      const matching = Array.from(fieldGroup.options).find((option) => option.value === currentSelection);
+      if (matching) {
+        fieldGroup.value = matching.value;
+      } else {
+        fieldGroup.selectedIndex = 0;
+      }
+    };
+
+    const renderRows = (items) => {
+      tableBody.innerHTML = "";
+      if (!items.length) {
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Нет данных</td></tr>';
+        return;
+      }
+      items.forEach((item) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <th scope="row" class="fw-semibold">${item.id}</th>
+          <td>${item.file_name ?? "—"}</td>
+          <td class="text-muted">${item.comments ?? ""}</td>
+          <td>${item.group_name ? `${item.group_id} — ${item.group_name}` : item.group_id}</td>
+          <td class="text-end">
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-secondary" data-action="edit" data-id="${item.id}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-outline-danger" data-action="delete" data-id="${item.id}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </td>`;
+        tableBody.appendChild(row);
+      });
+    };
+
+    const loadGroups = async () => {
+      try {
+        const response = await fetch('/api/groups/');
+        if (!response.ok) {
+          throw new Error(`Ошибка ${response.status}`);
+        }
+        const data = await response.json();
+        groupsCache = data.items || [];
+        renderGroupOptions();
+      } catch (error) {
+        groupsCache = [];
+        renderGroupOptions();
+        showAlert(`Не удалось загрузить группы: ${error.message}`, 'danger');
+      }
+    };
+
+    const loadTypes = async () => {
+      clearAlert();
+      tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Загрузка...</td></tr>';
+      try {
+        const response = await fetch("/api/types/");
+        if (!response.ok) {
+          throw new Error(`Ошибка ${response.status}`);
+        }
+        const data = await response.json();
+        typesCache = data.items || [];
+        renderRows(typesCache);
+      } catch (error) {
+        renderRows([]);
+        showAlert(`Не удалось получить данные: ${error.message}`, "danger");
+      }
+    };
+
+    const findType = (id) => typesCache.find((item) => item.id === id);
+
+    tableBody.addEventListener("click", async (event) => {
+      const target = event.target.closest("button[data-action]");
+      if (!target) return;
+      const action = target.dataset.action;
+      const typeId = Number(target.dataset.id);
+      const current = findType(typeId);
+      if (!current) return;
+
+      if (action === "edit") {
+        fieldId.value = current.id;
+        fieldFileName.value = current.file_name ?? "";
+        fieldComments.value = current.comments ?? "";
+        fieldGroup.value = current.group_id;
+        setFormMode(current.id);
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      if (action === "delete") {
+        const confirmDelete = confirm(`Удалить тип #${typeId}?`);
+        if (!confirmDelete) return;
+        try {
+          const response = await fetch(`/api/types/${typeId}`, { method: "DELETE" });
+          if (!response.ok) {
+            throw new Error(`Статус ${response.status}`);
+          }
+          showAlert(`Тип #${typeId} удален.`);
+          await loadTypes();
+          setFormMode(null);
+        } catch (error) {
+          showAlert(`Не удалось удалить: ${error.message}`, "danger");
+        }
+      }
+    });
+
+    refreshBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      loadGroups();
+      loadTypes();
+    });
+
+    resetBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      setFormMode(null);
+      clearAlert();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!form.checkValidity()) {
+        form.classList.add("was-validated");
+        return;
+      }
+
+      if (!groupsCache.length) {
+        showAlert("Создайте хотя бы одну группу перед добавлением типа.", "warning");
+        return;
+      }
+
+      const payload = {
+        id: Number(fieldId.value),
+        file_name: fieldFileName.value || null,
+        comments: fieldComments.value || null,
+        group_id: Number(fieldGroup.value),
+      };
+
+      const isEdit = editingId !== null;
+      const url = isEdit ? `/api/types/${editingId}` : "/api/types/";
+      const method = isEdit ? "PUT" : "POST";
+
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const message = errorData.message || `Статус ${response.status}`;
+          throw new Error(message);
+        }
+        const data = await response.json();
+        const actionLabel = isEdit ? "обновлен" : "создан";
+        showAlert(`Тип #${data.type?.id ?? payload.id} ${actionLabel}.`);
+        await loadTypes();
+        setFormMode(null);
+      } catch (error) {
+        showAlert(`Ошибка сохранения: ${error.message}`, "danger");
+      }
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setFormMode(null);
+      loadGroups();
+      loadTypes();
+    });
+  </script>
+{% endblock %}

@@ -4,16 +4,20 @@
     <div class="col-12 col-xl-7">
       <div class="p-4 p-lg-5 bg-white glass hero-card">
         <p class="text-uppercase text-muted fw-semibold mb-2">Панель управления</p>
-        <h1 class="display-6 fw-bold mb-3">Файловые группы книг</h1>
+        <h1 class="display-6 fw-bold mb-3">Файловые группы и типы</h1>
         <p class="lead mb-4">
-          Главная страница проекта TBC: здесь собраны ссылки на рабочие модули и
-          документацию. Для управления таблицей <code>tbc.books_files_groups</code>
-          воспользуйтесь разделом ниже.
+          Главная страница проекта TBC: здесь собраны ссылки на рабочие модули и документацию.
+          Управляйте таблицами <code>tbc.books_files_groups</code> и
+          <code>tbc.books_files_types</code> через готовые интерфейсы ниже.
         </p>
         <div class="d-flex flex-wrap gap-3">
           <a class="btn btn-dark btn-lg btn-icon" href="/groups">
             <span class="bi bi-table"></span>
             Открыть список групп
+          </a>
+          <a class="btn btn-outline-dark btn-lg btn-icon" href="/types">
+            <span class="bi bi-files"></span>
+            Типы файлов книг
           </a>
           <a class="btn btn-outline-secondary btn-lg btn-icon" href="/api/docs" aria-disabled="true">
             <span class="bi bi-journal-text"></span>
@@ -36,21 +40,21 @@
           <li class="d-flex align-items-start gap-3 mb-3">
             <span class="badge bg-dark rounded-pill">2</span>
             <div>
-              <strong>Используйте форму для добавления.</strong>
-              Введите идентификатор, название и комментарий — запись будет создана через API.
+              <strong>Создайте группу и используйте её при добавлении типов файлов.</strong>
+              Поле <code>group_id</code> в типах ссылается на <code>books_files_groups.id</code>.
             </div>
           </li>
           <li class="d-flex align-items-start gap-3">
             <span class="badge bg-dark rounded-pill">3</span>
             <div>
-              <strong>Редактируйте и удаляйте прямо из таблицы.</strong>
+              <strong>Редактируйте и удаляйте записи прямо из таблиц.</strong>
               Кнопки действий обновляют данные через эндпоинты CRUD.
             </div>
           </li>
         </ul>
         <div class="alert alert-secondary mb-0" role="alert">
           Все операции выполняются через существующие API <code>/api/groups</code> и
-          используют конфигурацию подключения к PostgreSQL.
+          <code>/api/types</code> с использованием подключения к PostgreSQL.
         </div>
       </div>
     </div>

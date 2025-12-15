@@ -13,3 +13,8 @@ def index() -> str:
 @ui_blueprint.get("/groups")
 def groups_page() -> str:
     return render_template("groups.html")
+
+
+@ui_blueprint.get("/types")
+def types_page() -> str:
+    return render_template("types.html")

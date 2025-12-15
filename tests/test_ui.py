@@ -30,3 +30,11 @@ def test_groups_page(client):
     body = response.get_data(as_text=True)
     assert "Группы файлов книг" in body
     assert "/api/groups" in body
+
+
+def test_types_page(client):
+    response = client.get("/types")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Типы файлов книг" in body
+    assert "/api/types" in body
