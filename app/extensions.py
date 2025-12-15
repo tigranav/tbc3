@@ -52,11 +52,12 @@ def _build_sqlalchemy_url(app: Flask) -> str:
         port=postgres_config.port,
         database=postgres_config.database,
     )
-    return str(url)
+    return url
 
 
 def configure_sqlalchemy(app: Flask) -> None:
     sqlalchemy_url = _build_sqlalchemy_url(app)
+    #print(sqlalchemy_url)
     engine = create_engine(sqlalchemy_url, future=True)
     session_factory = sessionmaker(
         bind=engine, autoflush=False, autocommit=False, expire_on_commit=False, future=True
