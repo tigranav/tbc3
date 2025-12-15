@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from flask import Blueprint, Response, current_app, jsonify, request
+from celery import states
+from flask import Blueprint, Response, current_app, jsonify, request, url_for
 
 importer_blueprint = Blueprint("importer", __name__, url_prefix="/api/importer")
 
@@ -106,3 +107,69 @@ def ingest_records() -> tuple[Response, int]:
         ),
         200,
     )
+
+
+@importer_blueprint.route("/progress", methods=["POST"])
+def enqueue_progress_import() -> tuple[Response, int]:
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"status": "error", "message": "Request body must be valid JSON"}), 400
+
+    try:
+        records = _validate_records(payload.get("records"))
+    except ValueError as exc:
+        current_app.logger.warning("Progress task validation failed: %s", exc)
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+    try:
+        from app.extensions import get_celery_app
+
+        celery_app = get_celery_app(current_app)
+        process_task = celery_app.tasks["app.tasks.importer.process_batch_with_progress"]
+    except Exception as exc:  # noqa: BLE001
+        current_app.logger.error("Celery dispatch failed: %s", exc)
+        return jsonify({"status": "error", "message": "Celery is not configured"}), 503
+
+    async_result = process_task.apply_async(args=[records], queue=celery_app.conf.task_default_queue)
+    status_path = url_for("importer.task_status", task_id=async_result.id)
+
+    response_payload = {
+        "status": "queued",
+        "task_id": async_result.id,
+        "status_url": status_path,
+        "queue": celery_app.conf.task_default_queue,
+    }
+
+    if async_result.ready():
+        response_payload["result"] = async_result.result
+
+    return jsonify(response_payload), 202
+
+
+@importer_blueprint.route("/status/<task_id>", methods=["GET"])
+def task_status(task_id: str) -> tuple[Response, int]:
+    try:
+        from app.extensions import get_celery_app
+
+        celery_app = get_celery_app(current_app)
+    except Exception as exc:  # noqa: BLE001
+        current_app.logger.error("Celery lookup failed: %s", exc)
+        return jsonify({"status": "error", "message": "Celery is not configured"}), 503
+
+    async_result = celery_app.AsyncResult(task_id)
+    response_payload: Dict[str, Any] = {"task_id": task_id, "state": async_result.state}
+
+    if async_result.info:
+        if isinstance(async_result.info, dict):
+            response_payload["meta"] = async_result.info
+        else:
+            response_payload["meta"] = {"details": str(async_result.info)}
+
+    if async_result.successful():
+        response_payload["result"] = async_result.result
+        return jsonify(response_payload), 200
+
+    if async_result.state == states.FAILURE:
+        response_payload["error"] = str(async_result.result)
+
+    return jsonify(response_payload), 200

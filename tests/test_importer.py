@@ -99,3 +99,29 @@ def test_ingest_records_enqueued(eager_client):
     task_info = data["tasks"][0]
     assert task_info["record_id"] == "3"
     assert task_info["result"]["normalized_payload"] == "queued"
+
+
+def test_progress_task_status(eager_client):
+    payload = {
+        "records": [
+            {"id": 1, "payload": "  GPU job  "},
+            {"id": 2, "payload": " CPU job"},
+        ]
+    }
+
+    enqueue_response = eager_client.post("/api/importer/progress", json=payload)
+
+    assert enqueue_response.status_code == 202
+    enqueue_data = enqueue_response.get_json()
+    assert enqueue_data["status"] == "queued"
+    task_id = enqueue_data["task_id"]
+
+    status_response = eager_client.get(f"/api/importer/status/{task_id}")
+
+    assert status_response.status_code == 200
+    status_data = status_response.get_json()
+    assert status_data["state"] == "SUCCESS"
+    assert status_data["result"]["total"] == 2
+    processed = status_data["result"]["processed"]
+    assert processed[0]["normalized_payload"] == "gpu job"
+    assert processed[1]["normalized_payload"] == "cpu job"
