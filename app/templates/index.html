@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="row g-4">
+    <div class="col-12 col-xl-7">
+      <div class="p-4 p-lg-5 bg-white glass hero-card">
+        <p class="text-uppercase text-muted fw-semibold mb-2">Панель управления</p>
+        <h1 class="display-6 fw-bold mb-3">Файловые группы и типы</h1>
+        <p class="lead mb-4">
+          Главная страница проекта TBC: здесь собраны ссылки на рабочие модули и документацию.
+          Управляйте таблицами <code>tbc.books_files_groups</code> и
+          <code>tbc.books_files_types</code> через готовые интерфейсы ниже.
+        </p>
+        <div class="d-flex flex-wrap gap-3">
+          <a class="btn btn-dark btn-lg btn-icon" href="/groups">
+            <span class="bi bi-table"></span>
+            Открыть список групп
+          </a>
+          <a class="btn btn-outline-dark btn-lg btn-icon" href="/types">
+            <span class="bi bi-files"></span>
+            Типы файлов книг
+          </a>
+          <a class="btn btn-outline-secondary btn-lg btn-icon" href="/api/docs" aria-disabled="true">
+            <span class="bi bi-journal-text"></span>
+            API документация
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-5">
+      <div class="p-4 bg-white glass h-100 hero-card">
+        <h2 class="h5 section-title mb-3">Как работать с UI</h2>
+        <ul class="list-unstyled mb-4">
+          <li class="d-flex align-items-start gap-3 mb-3">
+            <span class="badge bg-dark rounded-pill">1</span>
+            <div>
+              <strong>Перейдите в раздел «Группы файлов книг».</strong>
+              Там отображается актуальное содержимое таблицы из PostgreSQL.
+            </div>
+          </li>
+          <li class="d-flex align-items-start gap-3 mb-3">
+            <span class="badge bg-dark rounded-pill">2</span>
+            <div>
+              <strong>Создайте группу и используйте её при добавлении типов файлов.</strong>
+              Поле <code>group_id</code> в типах ссылается на <code>books_files_groups.id</code>.
+            </div>
+          </li>
+          <li class="d-flex align-items-start gap-3">
+            <span class="badge bg-dark rounded-pill">3</span>
+            <div>
+              <strong>Редактируйте и удаляйте записи прямо из таблиц.</strong>
+              Кнопки действий обновляют данные через эндпоинты CRUD.
+            </div>
+          </li>
+        </ul>
+        <div class="alert alert-secondary mb-0" role="alert">
+          Все операции выполняются через существующие API <code>/api/groups</code> и
+          <code>/api/types</code> с использованием подключения к PostgreSQL.
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
