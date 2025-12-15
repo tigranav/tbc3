@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 @dataclass
 class PostgresConfig:
-    host: str = "192.168.0.50"
-    port: int = 5433
-    user: str = "tbc"
-    password: str = "tbcpass"
-    database: str = "books"
+    host: str = "localhost"
+    port: int = 5432
+    user: str = "postgres"
+    password: str = ""
+    database: str = "postgres"
 
     @classmethod
     def from_environ(cls) -> "PostgresConfig":
@@ -64,3 +64,4 @@ class Config:
     TESTING = False
     POSTGRES_CONFIG = PostgresConfig.from_environ()
     CELERY_CONFIG = CeleryConfig.from_environ()
+    SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI")

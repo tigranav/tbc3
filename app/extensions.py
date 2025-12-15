@@ -4,6 +4,9 @@ from typing import Any
 
 from celery import Celery
 from flask import Flask
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine, URL
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import CeleryConfig, PostgresConfig
 from libs.pgdb_class import pgdb
@@ -30,6 +33,53 @@ def get_db_factory(app: Flask) -> type[pgdb]:
     if not isinstance(factory, type) or not issubclass(factory, pgdb):
         raise TypeError("Configured database factory is invalid")
     return factory
+
+
+def _build_sqlalchemy_url(app: Flask) -> str:
+    postgres_config: PostgresConfig | None = app.config.get("POSTGRES_CONFIG")
+    if not isinstance(postgres_config, PostgresConfig):
+        raise TypeError("POSTGRES_CONFIG must be a PostgresConfig instance")
+
+    override_uri: str | None = app.config.get("SQLALCHEMY_DATABASE_URI")
+    if override_uri:
+        return override_uri
+
+    url = URL.create(
+        "postgresql+psycopg2",
+        username=postgres_config.user or None,
+        password=postgres_config.password or None,
+        host=postgres_config.host,
+        port=postgres_config.port,
+        database=postgres_config.database,
+    )
+    return str(url)
+
+
+def configure_sqlalchemy(app: Flask) -> None:
+    sqlalchemy_url = _build_sqlalchemy_url(app)
+    engine = create_engine(sqlalchemy_url, future=True)
+    session_factory = sessionmaker(
+        bind=engine, autoflush=False, autocommit=False, expire_on_commit=False, future=True
+    )
+    app.extensions["sa_engine"] = engine
+    app.extensions["sa_sessionmaker"] = session_factory
+
+
+def get_engine(app: Flask) -> Engine:
+    engine: Any = app.extensions.get("sa_engine")
+    if engine is None:
+        raise LookupError("SQLAlchemy engine is not configured. Call configure_sqlalchemy first.")
+    if not isinstance(engine, Engine):
+        raise TypeError("Configured SQLAlchemy engine is invalid")
+    return engine
+
+
+def get_session(app: Flask) -> Session:
+    session_factory: Any = app.extensions.get("sa_sessionmaker")
+    if session_factory is None:
+        raise LookupError("Session factory is not configured. Call configure_sqlalchemy first.")
+    session: Session = session_factory()
+    return session
 
 
 def create_celery_app(app: Flask) -> Celery:

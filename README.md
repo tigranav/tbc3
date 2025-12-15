@@ -21,7 +21,8 @@ Database connection settings are read from the environment via `app.config.Postg
 - `POSTGRES_PASSWORD` (default: empty)
 - `POSTGRES_DB` (default: `postgres`)
 
-You can also set `FLASK_SECRET_KEY` to override the default secret key.
+You can also set `FLASK_SECRET_KEY` to override the default secret key. For SQLAlchemy CRUD endpoints you may override the
+connection string with `SQLALCHEMY_DATABASE_URI`; otherwise it is built from the PostgreSQL settings above.
 
 ### Celery configuration
 
@@ -64,6 +65,51 @@ export FLASK_RUN_PORT=5000
 flask run --debug
 ```
 
+## Веб-интерфейс (Bootstrap 5)
+
+Готовый UI работает поверх существующих API и подключается к той же PostgreSQL базе. После запуска приложения:
+
+- Откройте `http://localhost:5000/` — главная страница с навигацией и краткой инструкцией.
+- Перейдите в раздел **«Группы файлов книг»** (`/groups`) — там отображается содержимое таблицы `tbc.books_files_groups` и есть формы для чтения/добавления/редактирования/удаления записей.
+
+### Как пользоваться страницей `/groups`
+
+1. Нажмите **«Обновить»**, чтобы загрузить данные через `GET /api/groups/`.
+2. Для создания заполните форму (ID обязателен) и отправьте — выполняется `POST /api/groups/`.
+3. Для редактирования выберите запись через кнопку с карандашом — форма переключится в режим `PUT /api/groups/<id>`.
+4. Кнопка с корзиной удаляет запись через `DELETE /api/groups/<id>` с подтверждением.
+
+Дизайн собран на Bootstrap 5.3 с минималистичными компонентами: шапка, карточки, адаптивная таблица и компактные кнопки действий. JS на странице работает через `fetch` и использует существующий REST-блюпринт `/api/groups` без дополнительных зависимостей.
+
+## CRUD-блюпринт на SQLAlchemy для `tbc.books_files_groups`
+
+Каталожный пример заменён на целевой CRUD для таблицы `tbc.books_files_groups`, реализованный через SQLAlchemy.
+
+- **Модели и репозиторий:** `app/blueprints/groups/models.py` и `app/blueprints/groups/repository.py` описывают ORM-модель и операции чтения/записи (используют `SQLALCHEMY_DATABASE_URI` или настройки PostgreSQL по умолчанию).
+- **Маршруты:** `app/blueprints/groups/__init__.py` регистрирует `Blueprint` под префиксом `/api/groups` и реализует CRUD.
+
+### Эндпоинты
+
+- `GET /api/groups/` — список групп: `{ "items": [...], "total": <int> }`.
+- `GET /api/groups/<id>` — вернуть объект или `404`.
+- `POST /api/groups/` — создать запись. JSON-пример:
+
+  ```json
+  {"id": 10, "name": "GPU jobs", "comment": "tasks that need CUDA"}
+  ```
+
+  Возвращает `201` и созданный объект, либо `400`, если `id` уже существует.
+
+- `PUT /api/groups/<id>` — обновить `name`/`comment`. Возвращает `404`, если записи нет.
+- `DELETE /api/groups/<id>` — удаляет запись, возвращает `404`, если её нет.
+
+### Как добавить свой SQLAlchemy-блюпринт
+
+1. **Создайте модель** от `app.db.Base` и опишите схему/ограничения PostgreSQL (поля, длины строк, `__table_args__` для схемы) без изменения структуры БД.
+2. **Определите репозиторий** с методами CRUD в отдельном модуле. Используйте `Session` из `app.extensions.get_session` и явно вызывайте `commit()/rollback()`.
+3. **Соберите блюпринт** в `__init__.py`: регистрируйте `Blueprint`, валидируйте входной JSON, возвращайте структурированные ответы и закрывайте сессии через контекстный менеджер, как в `_repository()`.
+4. **Добавьте роуты в фабрику** (`app/__init__.py`) и опишите краткую документацию/примеры запросов в README.
+5. **Напишите тесты** на SQLite (`SQLALCHEMY_DATABASE_URI=sqlite+pysqlite:///:memory:`), создавая таблицы через `Base.metadata` и проверяя happy-path/ошибки.
 ## Background tasks with Celery
 
 The application ships with a Celery app in `app/celery_app.py` and a sample task at `app/tasks/importer.py` that normalizes importer records. Queues are configured in `app.config.CeleryConfig` and default to the queue name found in `CELERY_DEFAULT_QUEUE` (the importer blueprint uses this when dispatching tasks).

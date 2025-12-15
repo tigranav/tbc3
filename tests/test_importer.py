@@ -8,6 +8,7 @@ from app.config import CeleryConfig, Config
 
 class TestConfig(Config):
     TESTING = True
+    SQLALCHEMY_DATABASE_URI = "sqlite+pysqlite:///:memory:"
 
 
 class EagerCeleryConfig(Config):
@@ -20,6 +21,7 @@ class EagerCeleryConfig(Config):
         task_eager_propagates=True,
         task_store_eager_result=True,
     )
+    SQLALCHEMY_DATABASE_URI = "sqlite+pysqlite:///:memory:"
 
 
 @pytest.fixture()

@@ -18,7 +18,15 @@ def client():
         yield client
 
 
-def test_health_endpoint(client):
-    response = client.get("/api/health")
+def test_index_page(client):
+    response = client.get("/")
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok"}
+    assert "Панель управления" in response.get_data(as_text=True)
+
+
+def test_groups_page(client):
+    response = client.get("/groups")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Группы файлов книг" in body
+    assert "/api/groups" in body
