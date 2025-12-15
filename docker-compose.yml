@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    environment:
+      FLASK_APP: app:create_app
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_DEFAULT_QUEUE: importer
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+
+  worker:
+    build: .
+    environment:
+      FLASK_APP: app:create_app
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_DEFAULT_QUEUE: importer
+    command: celery -A app.celery_app.celery worker --loglevel=info --queues=${CELERY_DEFAULT_QUEUE:-importer}
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
