@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 @dataclass
 class PostgresConfig:
-    host: str = "localhost"
-    port: int = 5432
-    user: str = "postgres"
-    password: str = ""
-    database: str = "postgres"
+    host: str = "192.168.0.50"
+    port: int = 5433
+    user: str = "tbc"
+    password: str = "tbcpass"
+    database: str = "books"
 
     @classmethod
     def from_environ(cls) -> "PostgresConfig":

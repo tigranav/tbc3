@@ -173,3 +173,19 @@ def task_status(task_id: str) -> tuple[Response, int]:
         response_payload["error"] = str(async_result.result)
 
     return jsonify(response_payload), 200
+
+
+
+
+@importer_blueprint.route("/import", methods=["POST"])
+def import_file() -> tuple[Response, int]:
+    payload = request.get_json(silent=True)
+    #from libs.tbc_class import TBC
+    pgdb = current_app.extensions["pgdb_factory"]
+    #from libs.pgdb_class import pgdb
+    #pg = pgdb()
+    #res = pg.fetchone_dict("select count(*) from books")    
+    with pgdb() as pg:
+        res = pg.fetchone_dict("select * from books where id=345345")    
+
+    return ( jsonify(res), 200)
