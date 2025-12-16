@@ -52,7 +52,7 @@ def _build_sqlalchemy_url(app: Flask) -> str:
         port=postgres_config.port,
         database=postgres_config.database,
     )
-    return str(url)
+    return url
 
 
 def configure_sqlalchemy(app: Flask) -> None:
